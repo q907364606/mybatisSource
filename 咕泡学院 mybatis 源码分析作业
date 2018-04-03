@@ -1,1 +1,62 @@
 
+
+
+1.Mapper在spring的管理下其实是单例模式，为什么它可以是一个单例模式。
+	因为它实现了 BeanDefinitionRegistryPostProcessor，能够将扫描到的 mapper 接口 使用 scope=singleton 注册到 springIOC当中。
+  
+  
+2.MyBatis在Spring集成下没有mapper的xml文件会不会报错，为什么？
+首先从设计者的逻辑来讲
+mapper xml配置和注解两种方式都可以完成对数据库的操作，只需要有一种实现方式存在即可。
+所以在有注解的实现方式下，没有mapper xml也可以
+其次，从代码中查看这一实现逻辑：
+
+mybatis会使用org.mybatis.spring.mapper.MapperFactoryBean这个类去加载Mapper接口和xml/注解
+在org.apache.ibatis.builder.annotation.MapperAnnotationBuilder.loadXmlResource()方法中加载mapper的xml，如果没有
+mxl文件也不会报错，异常被忽略了
+
+  if (!configuration.isResourceLoaded("namespace:" + type.getName())) {
+          String xmlResource = type.getName().replace('.', '/') + ".xml";
+          InputStream inputStream = null;
+          try {
+            inputStream = Resources.getResourceAsStream(type.getClassLoader(), xmlResource);
+          } catch (IOException e) {
+            // ignore, resource is not required
+          }
+          if (inputStream != null) {
+            XMLMapperBuilder xmlParser = new XMLMapperBuilder(inputStream, assistant.getConfiguration(), xmlResource, configuration.getSqlFragments(), type.getName());
+            xmlParser.parse();
+          }  
+    }
+
+3.TypeHandler手写
+
+TypeHandler位置: https://github.com/q907364606/mybatisSource/blob/master/MytinyintTypeHandler.java
+
+TypeHandler测试类  
+    
+	//这个方法用于测试 TypeHandler
+	public static void main(String[] args) throws Exception {
+		InputStream in = new FileInputStream( "F:\\myeclipse_workspace\\mybatisGeneratortest\\src\\test\\resources\\mybatis-config.xml");
+		SqlSessionFactory factory = new SqlSessionFactoryBuilder().build(in);
+		
+		SqlSession sqlSession = factory.openSession();
+		
+		PersonDao pd = sqlSession.getMapper(  PersonDao.class );
+		
+		List<Person>plist =  pd.selectPersonList();
+		
+		for(Person ps:plist){
+			System.out.println( ps.getTesttinyint() );
+		}	
+		
+	}
+   不要忘了在mybatis-config.xml文件中配置这个：
+      <typeHandlers>
+	   <typeHandler handler="com.zwz.testTypeHandler.MytinyintTypeHandler"/>
+	</typeHandlers>
+
+
+4.手写Plugin,多个interceptor到底谁先执行？顺序由谁决定的？
+答：经测试，修改src/main/resources/mybatis-config.xml中配置的plugin顺序
+就可修改plugin的执行顺序，所以得出结论：plugin的执行顺序由配置顺序决定
